@@ -1,4 +1,12 @@
-defmodule Token.Equals do
+defmodule Token.EOF do
+  defstruct []
+end
+
+defmodule Token.Illegal do
+  defstruct [:literal]
+end
+
+defmodule Token.Assign do
   defstruct [literal: "="]
 end
 
@@ -29,3 +37,20 @@ end
 defmodule Token.Semicolon do
   defstruct [literal: ";"]
 end
+
+defmodule Token.Let do
+  defstruct [literal: "let"]
+end
+
+defmodule Token.Function do
+  defstruct [literal: "fn"]
+end
+
+defmodule Token.Ident do
+  defstruct [:literal]
+end
+
+defmodule Token.Int do
+  defstruct [:literal]
+end
+
