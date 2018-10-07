@@ -1,19 +1,32 @@
 defmodule Lexer do
   alias Token.{
     Assign,
+    Asterisk,
+    Bang,
     Comma,
+    DoubleEquals,
     EOF,
+    Else,
+    False,
     Function,
+    GreaterThan,
     Ident,
+    If,
     Illegal,
     Int,
+    LessThan,
     Let,
     LBrace,
     LParen,
+    Minus,
+    NotEqual,
     Plus,
     RBrace,
+    Return,
     RParen,
-    Semicolon
+    Semicolon,
+    Slash,
+    True,
   }
 
   use GenServer
@@ -35,71 +48,80 @@ defmodule Lexer do
     GenServer.call(lexer, :next_token)
   end
 
-  def handle_call(:next_token, _from, %{ch: "="} = state) do
-    reply(Assign, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: "+"} = state) do
-    reply(Plus, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: "("} = state) do
-    reply(LParen, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: ")"} = state) do
-    reply(RParen, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: ","} = state) do
-    reply(Comma, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: ";"} = state) do
-    reply(Semicolon, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: "{"} = state) do
-    reply(LBrace, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: "}"} = state) do
-    reply(RBrace, state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: 0} = state) do
-    {:reply, EOF, state |> read}
-  end
-
   def handle_call(:next_token, from, %{ch: ch} = state) when ch == " " or ch == "\t" or ch == "\n" do
     new_state = state |> read
     handle_call(:next_token, from, new_state)
   end
 
   def handle_call(:next_token, _from, %{ch: ch} = state) do
+    token = case ch do
+      "=" -> if peek(state) == "=", do: DoubleEquals, else: Assign
+      "!" -> if peek(state) == "=", do: NotEqual, else: Bang
+      "+" -> Plus
+      "(" -> LParen
+      ")" -> RParen
+      "{" -> LBrace
+      "}" -> RBrace
+      "," -> Comma
+      ";" -> Semicolon
+      "-" -> Minus
+      "/" -> Slash
+      "*" -> Asterisk
+      "<" -> LessThan
+      ">" -> GreaterThan
+      0 -> EOF
+      _ -> nil
+    end
+
+    # double character tokens
+    case token do
+      DoubleEquals -> double_read_and_reply(token, state)
+      NotEqual -> double_read_and_reply(token, state)
+      nil -> unknown_token(state)
+      _ -> read_and_reply(token, state)
+    end
+
+
+  end
+
+  defp unknown_token(%{ch: ch} = state) do
     cond do
       valid_ident_check(ch) ->
         %{ident: ident, state: state} = read_ident(state)
         {:reply, ident, state}
       valid_integer_check(ch) ->
         %{integer: integer, state: state} = read_integer(state)
-        {:reply, %Int{literal: integer}, state}
+        reply(Int, integer, state)
       true ->
-        {:reply, %Illegal{literal: ch}, state}
+        reply(Illegal, ch, state)
     end
   end
 
-  defp reply(token, state) do
+  defp double_read_and_reply(token, state) do
+    {:reply, struct(token), state |> read |> read}
+  end
+
+  defp read_and_reply(token, state) do
     {:reply, struct(token), state |> read}
   end
 
-  defp read(%{input: input, read_position: read_position} = state) do
-    ch = if read_position >= String.length(input), do: 0, else: input |> String.at(read_position)
+  # Do not advance read here (with `state |> read`)!
+  # We have already read a token to the end of the token
+  # Advancing will skip the character directly after the token.
+  defp reply(token, literal, state) do
+    {:reply, struct(token, literal: literal), state}
+  end
+
+  defp read(%{read_position: read_position} = state) do
     %{
       state |
       read_position: read_position + 1,
-      ch: ch
+      ch: peek(state)
     }
+  end
+
+  defp peek(%{input: input, read_position: read_position}) do
+    if read_position >= String.length(input), do: 0, else: input |> String.at(read_position)
   end
 
   defp valid_ident_check(ch) do
@@ -122,8 +144,7 @@ defmodule Lexer do
 
   def read_while_valid(%{ch: ch} = state, value, validator) do
     if validator.(ch) do
-      new_state = read(state)
-      read_while_valid(new_state, value <> ch, validator)
+      read(state) |> read_while_valid(value <> ch, validator)
     else
       %{
         value: value,
@@ -134,6 +155,12 @@ defmodule Lexer do
 
   defp lookup_ident("let"), do: %Let{}
   defp lookup_ident("fn"), do: %Function{}
+  defp lookup_ident("if"), do: %If{}
+  defp lookup_ident("else"), do: %Else{}
+  defp lookup_ident("return"), do: %Return{}
+  defp lookup_ident("true"), do: %True{}
+  defp lookup_ident("false"), do: %False{}
+
   defp lookup_ident(ident), do: %Ident{literal: ident}
 
   defp to_single_char(ch), do: ch |> to_charlist |> List.first

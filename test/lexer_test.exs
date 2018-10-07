@@ -4,20 +4,33 @@ defmodule LexerTest do
 
   alias Token.{
     Assign,
+    Asterisk,
+    Bang,
     Comma,
+    DoubleEquals,
+    Else,
+    False,
     Function,
+    GreaterThan,
     Ident,
+    If,
     Int,
+    LessThan,
     Let,
     LBrace,
     LParen,
+    Minus,
+    NotEqual,
     Plus,
     RBrace,
+    Return,
     RParen,
-    Semicolon
+    Semicolon,
+    Slash,
+    True,
   }
 
-  test "processes equals" do
+  test "processes some example Monkey code" do
     {:ok, lexer} = """
     let five = 5;
     let ten = 10;
@@ -68,6 +81,73 @@ defmodule LexerTest do
       %Comma{},
       %Ident{literal: "ten"},
       %RParen{},
+      %Semicolon{}
+    ]
+    |> Enum.each(fn (expected_token) ->
+      actual_token = Lexer.next_token(lexer)
+      assert actual_token == expected_token
+    end)
+  end
+
+  test "1.4: Extending our Token Set and Lexer" do
+    {:ok, lexer} = """
+    !-/*5;
+    5 < 10 > 5;
+
+    if (5 < 10) {
+      return true;
+    } else {
+      return false;
+    }
+
+    10 == 10;
+    10 != 9;
+    """ |> Lexer.start_link
+
+    [
+      %Bang{},
+      %Minus{},
+      %Slash{},
+      %Asterisk{},
+      %Int{literal: "5"},
+      %Semicolon{},
+
+      %Int{literal: "5"},
+      %LessThan{},
+      %Int{literal: "10"},
+      %GreaterThan{},
+      %Int{literal: "5"},
+      %Semicolon{},
+
+      %If{},
+      %LParen{},
+      %Int{literal: "5"},
+      %LessThan{},
+      %Int{literal: "10"},
+      %RParen{},
+      %LBrace{},
+
+      %Return{},
+      %True{},
+      %Semicolon{},
+
+      %RBrace{},
+      %Else{},
+      %LBrace{},
+
+      %Return{},
+      %False{},
+      %Semicolon{},
+      %RBrace{},
+
+      %Int{literal: "10"},
+      %DoubleEquals{},
+      %Int{literal: "10"},
+      %Semicolon{},
+
+      %Int{literal: "10"},
+      %NotEqual{},
+      %Int{literal: "9"},
       %Semicolon{}
     ]
     |> Enum.each(fn (expected_token) ->
