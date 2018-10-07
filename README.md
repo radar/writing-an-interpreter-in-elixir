@@ -1,21 +1,7 @@
-# Interpreter
+# Writing an Interpreter in Elixir
 
-**TODO: Add description**
+This is my attempt to follow along with the book [Writing an Interpreter in Go](https://interpreterbook.com/) but writing the code in Elixir instead of Go. I'm more familiar / "compatible" with Elixir than with go, and with Elixir's pattern matching a few things are simplified here (or so I think!).
 
-## Installation
+I'd consider myself a "mid-level" Elixir developer and have probably made mistakes in this code. If you see something that you know of a better way to do then I will accept a PR to teach me the right ways :)
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `interpreter` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:interpreter, "~> 0.1.0"}
-  ]
-end
-```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/interpreter](https://hexdocs.pm/interpreter).
-
+Commits are tagged with the section of the book that the code is from.
