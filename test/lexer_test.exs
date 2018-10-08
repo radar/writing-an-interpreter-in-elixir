@@ -8,6 +8,7 @@ defmodule LexerTest do
     Bang,
     Comma,
     DoubleEquals,
+    EOF,
     Else,
     False,
     Function,
@@ -31,7 +32,7 @@ defmodule LexerTest do
   }
 
   test "processes some example Monkey code" do
-    {:ok, lexer} = """
+    actual_tokens = """
     let five = 5;
     let ten = 10;
     let add = fn(x, y) {
@@ -39,8 +40,10 @@ defmodule LexerTest do
     };
     let result = add(five, ten);
     """
-    |> Lexer.start_link
-    [
+    |> Lexer.tokenize
+
+
+    expected_tokens = [
       %Let{},
       %Ident{literal: "five"},
       %Assign{},
@@ -81,16 +84,15 @@ defmodule LexerTest do
       %Comma{},
       %Ident{literal: "ten"},
       %RParen{},
-      %Semicolon{}
+      %Semicolon{},
+      %EOF{},
     ]
-    |> Enum.each(fn (expected_token) ->
-      actual_token = Lexer.next_token(lexer)
-      assert actual_token == expected_token
-    end)
+
+    assert expected_tokens == actual_tokens
   end
 
   test "1.4: Extending our Token Set and Lexer" do
-    {:ok, lexer} = """
+    actual_tokens = """
     !-/*5;
     5 < 10 > 5;
 
@@ -102,9 +104,9 @@ defmodule LexerTest do
 
     10 == 10;
     10 != 9;
-    """ |> Lexer.start_link
+    """ |> Lexer.tokenize
 
-    [
+    expected_tokens = [
       %Bang{},
       %Minus{},
       %Slash{},
@@ -148,11 +150,10 @@ defmodule LexerTest do
       %Int{literal: "10"},
       %NotEqual{},
       %Int{literal: "9"},
-      %Semicolon{}
+      %Semicolon{},
+      %EOF{},
     ]
-    |> Enum.each(fn (expected_token) ->
-      actual_token = Lexer.next_token(lexer)
-      assert actual_token == expected_token
-    end)
+
+    assert expected_tokens == actual_tokens
   end
 end

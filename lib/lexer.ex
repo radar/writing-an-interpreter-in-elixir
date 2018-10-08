@@ -1,4 +1,21 @@
 defmodule Lexer do
+  defguard is_known_single_token(ch) when
+    ch == "=" or
+    ch == ";" or
+    ch == "(" or
+    ch == ")" or
+    ch == "{" or
+    ch == "}" or
+    ch == "," or
+    ch == "+" or
+    ch == "," or
+    ch == "-" or
+    ch == "*" or
+    ch == "/" or
+    ch == "<" or
+    ch == ">" or
+    ch == "!"
+
   alias Token.{
     Assign,
     Asterisk,
@@ -29,128 +46,70 @@ defmodule Lexer do
     True,
   }
 
-  use GenServer
-
-  def init(args) do
-    {:ok, args |> read}
+  def tokenize(input) when is_binary(input) do
+    tokens = input |> String.split("", trim: true) |> tokenize([])
+    [%EOF{} | tokens] |> Enum.reverse
   end
 
-  def start_link(input) do
-    state = %{
-      input: input,
-      read_position: 0,
-      ch: nil,
-    }
-    GenServer.start_link(__MODULE__, state, [])
+  def tokenize(["=" | ["=" | rest]], tokens) do
+    tokenize(rest, [struct(DoubleEquals) | tokens])
   end
 
-  def next_token(lexer) do
-    GenServer.call(lexer, :next_token)
+  def tokenize(["!" | ["=" | rest]], tokens) do
+    tokenize(rest, [struct(NotEqual) | tokens])
   end
 
-  def handle_call(:next_token, from, %{ch: ch} = state) when ch == " " or ch == "\t" or ch == "\n" do
-    new_state = state |> read
-    handle_call(:next_token, from, new_state)
-  end
-
-  def handle_call(:next_token, _from, %{ch: ch} = state) do
+  def tokenize([ch | rest], tokens) when is_known_single_token(ch) do
     token = case ch do
-      "=" -> if peek(state) == "=", do: DoubleEquals, else: Assign
-      "!" -> if peek(state) == "=", do: NotEqual, else: Bang
-      "+" -> Plus
+      "=" -> Assign
+      ";" -> Semicolon
       "(" -> LParen
       ")" -> RParen
       "{" -> LBrace
       "}" -> RBrace
       "," -> Comma
-      ";" -> Semicolon
+      "+" -> Plus
+      "!" -> Bang
       "-" -> Minus
-      "/" -> Slash
       "*" -> Asterisk
+      "/" -> Slash
       "<" -> LessThan
       ">" -> GreaterThan
-      0 -> EOF
-      _ -> nil
     end
-
-    # double character tokens
-    case token do
-      DoubleEquals -> double_read_and_reply(token, state)
-      NotEqual -> double_read_and_reply(token, state)
-      nil -> unknown_token(state)
-      _ -> read_and_reply(token, state)
-    end
-
-
+    tokenize(rest, [struct(token, literal: ch) | tokens])
   end
 
-  defp unknown_token(%{ch: ch} = state) do
+  def tokenize([ch | rest] = chars, tokens) do
     cond do
-      valid_ident_check(ch) ->
-        %{ident: ident, state: state} = read_ident(state)
-        {:reply, ident, state}
-      valid_integer_check(ch) ->
-        %{integer: integer, state: state} = read_integer(state)
-        reply(Int, integer, state)
-      true ->
-        reply(Illegal, ch, state)
+      whitespace?(ch) -> tokenize(rest, tokens)
+      valid_ident?(ch) -> tokenize_ident(chars, tokens)
+      valid_number?(ch) -> tokenize_number(chars, tokens)
+      true -> tokenize(rest, [%Illegal{literal: ch} | tokens])
     end
   end
 
-  defp double_read_and_reply(token, state) do
-    {:reply, struct(token), state |> read |> read}
+  def tokenize([], tokens), do: tokens
+
+  def tokenize_ident(chars, tokens) do
+    {ident, rest} = Enum.split_while(chars, &valid_ident?/1)
+    tokenize(rest, [ident |> Enum.join |> lookup_ident | tokens])
   end
 
-  defp read_and_reply(token, state) do
-    {:reply, struct(token), state |> read}
+  def tokenize_number(chars, tokens) do
+    {integer, rest} = Enum.split_while(chars, &valid_number?/1)
+    tokenize(rest, [struct(Int, literal: integer |> Enum.join) | tokens])
   end
 
-  # Do not advance read here (with `state |> read`)!
-  # We have already read a token to the end of the token
-  # Advancing will skip the character directly after the token.
-  defp reply(token, literal, state) do
-    {:reply, struct(token, literal: literal), state}
+  defp whitespace?(ch) do
+    ch == " " or ch == "\n" or ch == "\t"
   end
 
-  defp read(%{read_position: read_position} = state) do
-    %{
-      state |
-      read_position: read_position + 1,
-      ch: peek(state)
-    }
+  def valid_ident?(ch) do
+    (ch >= "A" and ch <= "Z") or (ch >= "a" and ch <= "z") or ch == "_"
   end
 
-  defp peek(%{input: input, read_position: read_position}) do
-    if read_position >= String.length(input), do: 0, else: input |> String.at(read_position)
-  end
-
-  defp valid_ident_check(ch) do
-    (ch |> to_single_char) in Enum.to_list(?A..?Z) ++ Enum.to_list(?a..?z) ++ ['_']
-  end
-
-  defp read_ident(state) do
-    %{value: ident, state: state} = read_while_valid(state, "", &valid_ident_check/1)
-    %{ident: lookup_ident(ident), state: state}
-  end
-
-  defp valid_integer_check(ch) do
-    (ch |> to_single_char) in Enum.to_list(?0..?9)
-  end
-
-  defp read_integer(state) do
-    %{value: integer, state: state} = read_while_valid(state, "", &valid_integer_check/1)
-    %{integer: integer, state: state}
-  end
-
-  def read_while_valid(%{ch: ch} = state, value, validator) do
-    if validator.(ch) do
-      read(state) |> read_while_valid(value <> ch, validator)
-    else
-      %{
-        value: value,
-        state: state
-      }
-    end
+  def valid_number?(ch) do
+    ch >= "0" and ch <= "9"
   end
 
   defp lookup_ident("let"), do: %Let{}
@@ -160,8 +119,5 @@ defmodule Lexer do
   defp lookup_ident("return"), do: %Return{}
   defp lookup_ident("true"), do: %True{}
   defp lookup_ident("false"), do: %False{}
-
   defp lookup_ident(ident), do: %Ident{literal: ident}
-
-  defp to_single_char(ch), do: ch |> to_charlist |> List.first
 end
