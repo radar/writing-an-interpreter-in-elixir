@@ -1,3 +1,7 @@
+defmodule AST.Program do
+  defstruct [:statements]
+end
+
 defmodule AST.LetStatement do
   defstruct [:identifier, :value]
 end
@@ -20,6 +24,10 @@ end
 
 defmodule AST.PrefixExpression do
   defstruct [:operator, :right]
+end
+
+defmodule AST.InfixExpression do
+  defstruct [:left, :operator, :right]
 end
 
 defmodule AST do
