@@ -13,7 +13,6 @@ defmodule ParserTest do
 
     [first_statement | statements] = statements
 
-
     assert first_statement == %AST.LetStatement{
       identifier: %AST.Identifier{token: %Token.Ident{literal: "x"}},
       expression: [%Token.Int{literal: "5"}]
@@ -44,5 +43,33 @@ defmodule ParserTest do
 
       ["5"]
       """}
+  end
+
+  test "return statements" do
+    input = """
+    return 5;
+    return 10;
+    return 993322;
+    """
+
+    {:ok, statements } = input |> Lexer.tokenize |> Parser.parse
+
+    [first_statement | statements] = statements
+
+    assert first_statement == %AST.ReturnStatement{
+      expression: [%Token.Int{literal: "5"}]
+    }
+
+    [second_statement | statements] = statements
+
+    assert second_statement == %AST.ReturnStatement{
+      expression: [%Token.Int{literal: "10"}]
+    }
+
+    [third_statement | []] = statements
+
+    assert third_statement == %AST.ReturnStatement{
+      expression: [%Token.Int{literal: "993322"}]
+    }
   end
 end
