@@ -3,11 +3,11 @@ defmodule Parser.Let do
     %Token.Ident{} = ident,
     %Token.Assign{} | tokens
   ]) do
-    {expression, rest} = tokens |> Parser.split_until_semicolon
+    {value, rest} = tokens |> Parser.split_until_semicolon
     {:ok,
       %AST.LetStatement{
-        identifier: %AST.Identifier{token: ident},
-        expression: expression
+        identifier: %AST.Identifier{ident: ident.literal},
+        value: value
       },
       rest
     }

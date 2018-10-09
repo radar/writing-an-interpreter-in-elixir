@@ -1,26 +1,43 @@
 defmodule Parser do
-  alias Parser.{Let, Return}
+  alias Parser.{Expression, Let, Prefix, Return}
+
+  @precedence [
+    LOWEST,
+    EQUALS,
+    LESSGREATER,
+    SUM,
+    PRODUCT,
+    PREFIX,
+    CALL
+  ]
 
   def parse(tokens) do
     parse(tokens, [])
   end
 
-  def parse([%Token.Let{} | tokens], statements) do
-    case Let.parse(tokens) do
-      {:ok, let_statement, rest} -> parse(rest, [let_statement | statements])
+  defp parse([%Token.Let{} | tokens], statements) do
+    parse_known_token(Let, tokens, statements)
+  end
+
+  defp parse([%Token.Return{} | tokens], statements) do
+    parse_known_token(Return, tokens, statements)
+  end
+
+  defp parse([%Token.Bang{} = bang | tokens], statements) do
+    parse_known_token(Prefix, [bang | tokens], statements)
+  end
+
+  defp parse([%Token.EOF{}], statements), do: {:ok, statements |> Enum.reverse}
+  defp parse(tokens, statements) do
+    parse_known_token(Expression, tokens, statements)
+  end
+
+  defp parse_known_token(parser, tokens, statements) do
+    case parser.parse(tokens) do
+      {:ok, statement, rest} -> parse(rest, [statement | statements])
       {:error, error} -> {:error, error}
     end
   end
-
-  def parse([%Token.Return{} | tokens], statements) do
-    case Return.parse(tokens) do
-      {:ok, return_statement, rest} -> parse(rest, [return_statement | statements])
-      {:error, error} -> {:error, error}
-    end
-  end
-
-  def parse([%Token.EOF{}], statements), do: {:ok, statements |> Enum.reverse}
-  def parse([], _statements), do: raise "unexpected EOF"
 
   def show_invalid_tokens(tokens) do
     tokens |> Enum.map(&(&1.literal)) |> Enum.reject(&is_nil/1)

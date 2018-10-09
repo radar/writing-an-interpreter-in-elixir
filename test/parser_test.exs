@@ -14,22 +14,22 @@ defmodule ParserTest do
     [first_statement | statements] = statements
 
     assert first_statement == %AST.LetStatement{
-      identifier: %AST.Identifier{token: %Token.Ident{literal: "x"}},
-      expression: [%Token.Int{literal: "5"}]
+      identifier: %AST.Identifier{ident: "x"},
+      value: [%Token.Int{literal: "5"}]
     }
 
     [second_statement | statements] = statements
 
     assert second_statement == %AST.LetStatement{
-      identifier: %AST.Identifier{token: %Token.Ident{literal: "y"}},
-      expression: [%Token.Int{literal: "10"}]
+      identifier: %AST.Identifier{ident: "y"},
+      value: [%Token.Int{literal: "10"}]
     }
 
     [third_statement | []] = statements
 
     assert third_statement == %AST.LetStatement{
-      identifier: %AST.Identifier{token: %Token.Ident{literal: "foobar"}},
-      expression: [%Token.Int{literal: "838383"}]
+      identifier: %AST.Identifier{ident: "foobar"},
+      value: [%Token.Int{literal: "838383"}]
     }
   end
 
@@ -70,6 +70,41 @@ defmodule ParserTest do
 
     assert third_statement == %AST.ReturnStatement{
       expression: [%Token.Int{literal: "993322"}]
+    }
+  end
+
+  test "ident expressions" do
+    input = """
+    foobar;
+    """
+
+    {:ok, [first_statement | []] } = input |> Lexer.tokenize |> Parser.parse
+
+    assert first_statement == %AST.Identifier{ident: "foobar"}
+  end
+
+  test "integer expressions" do
+    input = """
+    5;
+    """
+
+    {:ok, [first_statement | []] } = input |> Lexer.tokenize |> Parser.parse
+
+    assert first_statement == %AST.Integer{literal: "5", value: 5}
+  end
+
+  test "prefix expressions" do
+    input = """
+    !5
+    """
+
+    {:ok, [first_statement | []] } = input |> Lexer.tokenize |> Parser.parse |> IO.inspect
+
+    assert first_statement == %AST.PrefixExpression{
+      operator: "!",
+      right: %AST.Integer{
+        literal: "5", value: 5
+      }
     }
   end
 end
