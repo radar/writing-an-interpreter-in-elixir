@@ -1,5 +1,5 @@
 defmodule Token.EOF do
-  defstruct []
+  defstruct [:literal]
 end
 
 defmodule Token.Illegal do
