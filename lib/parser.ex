@@ -1,5 +1,5 @@
 defmodule Parser do
-  alias Parser.{Expression, Let, Prefix, Return}
+  # alias Parser.{Expression, Let, Prefix, Return}
 
   defstruct [:current, :peek, :tokens, :errors]
 
@@ -14,19 +14,34 @@ defmodule Parser do
 
   def parse_program(parser, statements \\ []), do: do_parse_program(parser, statements)
 
+  defp do_parse_program(%Parser{errors: errors} = parser) when length(errors) > 0 do
+    {parser, nil}
+  end
+
   defp do_parse_program(%Parser{current: %Token.EOF{}} = parser, statements) do
     {parser, %AST.Program{statements: statements |> Enum.reverse}}
   end
 
   defp do_parse_program(%Parser{current: %Token.Let{}} = parser, statements) do
-    {parser, statement} = parse_let_statement(parser)
-    statements = add_statement(statement, statements)
-    do_parse_program(parser |> IO.inspect |> next_token, statements)
+    parser |> parse_let_statement |> handle_statement(statements)
   end
 
-  defp parse_let_statement(%Parser{current: %Token.Let{} = current_token} = parser) do
-    with {:ok, parser, ident_token} <- expect_peek(parser, %Token.Ident{}),
-         {:ok, parser, assign_token} <- expect_peek(parser, %Token.Assign{}),
+  defp do_parse_program(%Parser{current: %Token.Return{}} = parser, statements) do
+    parser |> parse_return_statement |> handle_statement(statements)
+  end
+
+  defp do_parse_program(%Parser{current: %Token.Ident{}} = parser, statements) do
+    parser |> parse_ident_statement |> handle_statement(statements)
+  end
+
+  defp do_parse_program(%Parser{current: %Token.Int{}} = parser, statements) do
+    {:ok, parser, statement} = parser |> parse_expression(@precedence_levels.lowest)
+    {:ok, parser |> next_token, statement} |> handle_statement(statements)
+  end
+
+  defp parse_let_statement(%Parser{current: %Token.Let{}} = parser) do
+    with {:ok, parser, ident_token} <- expect_peek(parser, Token.Ident),
+         {:ok, parser, _assign_token} <- expect_peek(parser, Token.Assign),
          parser <- next_token(parser),
          {:ok, parser, value} <- parse_expression(parser, @precedence_levels.lowest) do
 
@@ -35,20 +50,44 @@ defmodule Parser do
         value: value
       }
 
-      {parser |> skip_semicolon, statement}
+      {:ok, parser |> skip_semicolon, statement}
+    else
+      error -> error
     end
   end
 
-  defp parse_expression(%Parser{current: %Token.Int{literal: literal} = integer} = parser, _precedence) do
+  defp parse_return_statement(%Parser{current: %Token.Return{}} = parser) do
+    with parser <- next_token(parser),
+         {:ok, parser, value} <- parse_expression(parser, @precedence_levels.lowest) do
+
+      statement = %AST.ReturnStatement{
+        expression: value
+      }
+
+      {:ok, parser |> skip_semicolon, statement}
+    else
+      error -> error
+    end
+  end
+
+  defp parse_ident_statement(%Parser{current: %Token.Ident{literal: ident}} = parser) do
+    statement = %AST.Identifier{
+      ident: ident
+    }
+    {:ok, parser |> skip_semicolon, statement}
+  end
+
+  defp parse_expression(%Parser{current: %Token.Int{literal: literal}} = parser, _precedence) do
     statement = %AST.Integer{literal: literal, value: literal |> String.to_integer}
     {:ok, parser, statement}
   end
 
   defp expect_peek(%Parser{peek: peek} = parser, expected_token) do
-    if match?(expected_token, peek) do
-      {:ok, parser |> next_token, peek}
-    else
-      {parser, nil}
+    case peek do
+      %^expected_token{} -> {:ok, parser |> next_token, peek}
+      _ ->
+      error = "expected to see #{inspect(expected_token)}, but instead saw #{inspect(peek.__struct__)}"
+      {:error, error, parser}
     end
   end
 
@@ -77,41 +116,15 @@ defmodule Parser do
 
   defp skip_semicolon(%Parser{} = parser), do: parser
 
+  defp handle_statement({:ok, parser, statement}, statements) do
+    statements = add_statement(statement, statements)
+    do_parse_program(parser |> next_token, statements)
+  end
+
+  defp handle_statement({:error, error, parser}, _statements) do
+    do_parse_program(%Parser{parser | errors: [error | parser.errors]})
+  end
+
   defp add_statement(nil, statements), do: statements
   defp add_statement(statement, statements), do: [statement | statements]
-
-  # defp parse([%Token.Let{} | tokens], statements) do
-  #   parse_known_token(Let, tokens, statements)
-  # end
-
-  # defp parse([%Token.Return{} | tokens], statements) do
-  #   parse_known_token(Return, tokens, statements)
-  # end
-
-  # defp parse([%Token.EOF{}], statements), do: {:ok, statements |> Enum.reverse}
-
-  # defp parse(tokens, statements) do
-  #   parse_known_token(Expression, tokens, statements)
-  # end
-
-  # defp parse_known_token(parser, tokens, statements) do
-  #   case parser.parse(tokens) do
-  #     {:ok, statement, rest} -> parse(rest, [statement | statements])
-  #     {:error, error} -> {:error, error}
-  #   end
-  # end
-
-  # def show_invalid_tokens(tokens) do
-  #   tokens |> Enum.map(&(&1.literal)) |> Enum.reject(&is_nil/1)
-  # end
-
-  # def split_until_semicolon(tokens) do
-  #   splitter = fn
-  #     %Token.Semicolon{} -> false
-  #     _ -> true
-  #   end
-  #   {expression, rest} = Enum.split_while(tokens, splitter)
-  #   [_semicolon | rest] = rest
-  #   {expression, rest}
-  # end
 end
